@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EnvVar Validator | Local-First</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-20">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-2">
+                <div class="bg-indigo-600 p-2 rounded-lg text-white">
+                    <i data-lucide="shield-check"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-800 leading-none">EnvVar Validator</h1>
+                    <span class="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Local Storage Enabled</span>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3 w-full md:w-auto">
+                <div class="relative w-full md:w-64">
+                    <i data-lucide="key" class="absolute left-3 top-2.5 w-4 h-4 text-slate-400"></i>
+                    <input type="password" id="geminiKey" placeholder="Gemini API Key" 
+                        class="text-sm border border-slate-300 rounded-md pl-10 pr-3 py-2 w-full focus:ring-2 focus:ring-indigo-500 outline-none transition-all">
+                </div>
+                <button onclick="clearAll()" class="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-md transition-colors" title="Clear All Data">
+                    <i data-lucide="trash-2"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-6 space-y-6">
+        
+        <!-- Dashboard Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                <p class="text-slate-500 text-xs font-bold uppercase">Total</p>
+                <p id="statTotal" class="text-2xl font-bold text-slate-800">0</p>
+            </div>
+            <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100 shadow-sm">
+                <p class="text-emerald-600 text-xs font-bold uppercase">Valid</p>
+                <p id="statValid" class="text-2xl font-bold text-emerald-700">0</p>
+            </div>
+            <div class="bg-amber-50 p-4 rounded-xl border border-amber-100 shadow-sm">
+                <p class="text-amber-600 text-xs font-bold uppercase">Warnings</p>
+                <p id="statWarn" class="text-2xl font-bold text-amber-700">0</p>
+            </div>
+            <div class="bg-rose-50 p-4 rounded-xl border border-rose-100 shadow-sm">
+                <p class="text-rose-600 text-xs font-bold uppercase">Errors</p>
+                <p id="statError" class="text-2xl font-bold text-rose-700">0</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div class="lg:col-span-4 space-y-4">
+                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm h-full">
+                    <div class="flex justify-between items-center mb-2">
+                        <label class="text-sm font-semibold text-slate-700">Paste .env Content</label>
+                        <button onclick="copyExample()" class="text-[10px] text-indigo-600 font-bold uppercase hover:underline">Load Sample</button>
+                    </div>
+                    <textarea id="envInput" 
+                        class="w-full h-[500px] p-4 font-mono text-sm bg-slate-900 text-emerald-400 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 custom-scrollbar"
+                        placeholder="PORT=3000&#10;DB_URL=mongodb://..."></textarea>
+                    
+                    <button id="aiAssistBtn" onclick="askGemini()" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 transition-all active:scale-[0.98]">
+                        <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        Analyze with Gemini
+                    </button>
+                </div>
+            </div>
+
+            <div class="lg:col-span-8 space-y-6">
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <div class="relative">
+                            <i data-lucide="search" class="absolute left-3 top-2 w-4 h-4 text-slate-400"></i>
+                            <input type="text" id="searchTable" placeholder="Search keys..." class="text-sm border border-slate-300 rounded-md pl-9 pr-3 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <button onclick="exportReport()" class="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-indigo-600">
+                            <i data-lucide="download" class="w-4 h-4"></i> EXPORT
+                        </button>
+                    </div>
+                    
+                    <div class="overflow-x-auto max-h-[350px] custom-scrollbar">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-wider sticky top-0 z-10">
+                                <tr>
+                                    <th class="p-4 border-b">Variable</th>
+                                    <th class="p-4 border-b">Status</th>
+                                    <th class="p-4 border-b">Analysis</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsBody" class="text-sm"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="aiBox" class="hidden bg-white border-2 border-indigo-100 rounded-xl overflow-hidden shadow-xl">
+                    <div class="bg-indigo-600 px-4 py-2 flex justify-between items-center">
+                        <div class="flex items-center gap-2 text-white font-bold text-sm">
+                            <i data-lucide="bot" class="w-4 h-4"></i> Gemini AI Report
+                        </div>
+                        <button onclick="document.getElementById('aiBox').classList.add('hidden')" class="text-indigo-200 hover:text-white">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div id="aiContent" class="p-6 text-sm text-slate-700 prose prose-slate max-w-none custom-scrollbar max-h-[300px] overflow-y-auto"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const envInput = document.getElementById('envInput');
+        const geminiKeyInput = document.getElementById('geminiKey');
+        const resultsBody = document.getElementById('resultsBody');
+        let parsedData = [];
+
+        window.onload = () => {
+            if (localStorage.getItem('gemini_api_key')) geminiKeyInput.value = localStorage.getItem('gemini_api_key');
+            if (localStorage.getItem('last_env_content')) {
+                envInput.value = localStorage.getItem('last_env_content');
+                processEnv();
+            }
+            lucide.createIcons();
+        };
+
+        geminiKeyInput.addEventListener('input', (e) => localStorage.setItem('gemini_api_key', e.target.value));
+        envInput.addEventListener('input', () => {
+            localStorage.setItem('last_env_content', envInput.value);
+            processEnv();
+        });
+
+        function clearAll() {
+            if(confirm("Clear all saved data?")) { localStorage.clear(); location.reload(); }
+        }
+
+        function validateLine(key, value, allKeys) {
+            const errors = [], warnings = [];
+            if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) errors.push("Use UPPER_SNAKE_CASE");
+            if (!value || value.trim() === "") errors.push("Value is empty");
+            if (['your_', 'change_me', '12345'].some(p => value.toLowerCase().includes(p))) warnings.push("Using placeholder");
+            if (allKeys.filter(k => k === key).length > 1) errors.push("Duplicate key");
+            return { 
+                status: errors.length > 0 ? 'error' : (warnings.length > 0 ? 'warn' : 'valid'),
+                message: [...errors, ...warnings].join(" • ") || "Correct"
+            };
+        }
+
+        function processEnv() {
+            const lines = envInput.value.split('\n');
+            const keys = lines.filter(l => l.trim() && !l.startsWith('#')).map(l => l.split('=')[0].trim());
+            parsedData = lines.filter(l => l.trim() && !l.startsWith('#')).map(line => {
+                const [key, ...parts] = line.split('=');
+                const val = parts.join('=');
+                return { key: key.trim(), value: val.trim(), ...validateLine(key.trim(), val.trim(), keys) };
+            });
+            renderUI();
+        }
+
+        function renderUI() {
+            const filter = document.getElementById('searchTable').value.toLowerCase();
+            resultsBody.innerHTML = '';
+            let counts = { valid: 0, warn: 0, error: 0 };
+            parsedData.forEach(item => {
+                if (filter && !item.key.toLowerCase().includes(filter)) return;
+                counts[item.status]++;
+                const row = document.createElement('tr');
+                row.className = "border-b border-slate-50 hover:bg-slate-50";
+                const statusBadge = item.status === 'error' ? 'text-rose-600 bg-rose-50' : (item.status === 'warn' ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50');
+                row.innerHTML = `<td class="p-4 font-mono font-bold text-xs">${item.key}</td><td class="p-4"><span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${statusBadge}">${item.status}</span></td><td class="p-4 text-slate-500 text-xs">${item.message}</td>`;
+                resultsBody.appendChild(row);
+            });
+            document.getElementById('statTotal').innerText = parsedData.length;
+            document.getElementById('statValid').innerText = counts.valid;
+            document.getElementById('statWarn').innerText = counts.warn;
+            document.getElementById('statError').innerText = counts.error;
+        }
+
+        async function askGemini() {
+            const key = geminiKeyInput.value;
+            if (!key) return alert("Please enter API Key.");
+            const aiBox = document.getElementById('aiBox'), aiContent = document.getElementById('aiContent');
+            aiBox.classList.remove('hidden');
+            aiContent.innerHTML = "Analyzing...";
+            try {
+                const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: `Review these .env keys (values hidden): ${JSON.stringify(parsedData.map(p=>({key:p.key, issue:p.message})))}. Suggest fixes and an .env.example.` }] }] })
+                });
+                const data = await resp.json();
+                aiContent.innerText = data.candidates[0].content.parts[0].text;
+            } catch (err) { aiContent.innerText = "Error connecting to Gemini."; }
+        }
+
+        function copyExample() {
+            envInput.value = `PORT=3000\nDB_URL=change_me\nSECRET=123\nSECRET=duplicate\ninvalid-name=val`;
+            processEnv();
+        }
+    </script>
+</body>
+</html>
